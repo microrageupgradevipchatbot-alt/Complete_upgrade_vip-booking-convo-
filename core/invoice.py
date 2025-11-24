@@ -63,6 +63,7 @@ def generate_single_invoice(extracted_info):
             vip_data = vip_data["vip_services_tool_response"]
         services_data = vip_data.get("data", [])
         service_name_fallback = "Airport VIP Service"
+        service_key = "title"
     else:
         transfer_data = extracted_info.get("primary_airport_transfer_details", {})
         # Unwrap if nested under 'transport_services_tool_response'
@@ -70,58 +71,57 @@ def generate_single_invoice(extracted_info):
             transfer_data = transfer_data["transport_services_tool_response"]
         services_data = transfer_data.get("data", [])
         service_name_fallback = "Transport Service"
+        service_key = "name"
     # ...existing code...
 
     service_name, service_words, service_refund = service_name_fallback, "", "usually 48 hours"
     selected_service = None
 
-    # Helper to safely normalize strings
-    def _norm(v):
-        return str(v).strip().lower() if v else ""
-
     if isinstance(service_selected, dict):
         selected_service = service_selected
     elif str(service_selected).strip():
         sel = str(service_selected).strip()
-        sel_norm = _norm(sel)
         if sel.isdigit():
             idx = int(sel) - 1
             if 0 <= idx < len(services_data):
                 selected_service = services_data[idx]
         else:
-            key = "title" if interest == "vip" else "name"
-            # Skip entries where key is None
+            # FIX: Match by checking if the selection is a substring of the service name
             selected_service = next(
-                (s for s in services_data if _norm(s.get(key)) == sel_norm),
+                (s for s in services_data 
+                 if s.get(service_key) and sel.lower() in s.get(service_key, "").lower()), 
                 None
             )
-
     if selected_service:
-        if interest == "vip":
-            candidate = selected_service.get("title") or service_name_fallback
-            service_name = candidate if candidate else service_name_fallback
-        else:
-            candidate = selected_service.get("name") or service_name_fallback
-            service_name = candidate if candidate else service_name_fallback
+        service_name = selected_service.get(service_key, service_name_fallback)
+        # FIX: Clean the service name (remove class/descriptors)
+        if interest == "transfer":
+            # Apply same cleaning logic as format_transport_services_message
+            if "(" in service_name and ")" in service_name and service_name.find("(") < service_name.find(")"):
+                service_name = service_name[:service_name.find(")") + 1].strip()
+            else:
+                for sep in [" - ", ", or similar", ", or", ", similar", ","]:
+                    if sep in service_name:
+                        service_name = service_name.split(sep)[0].strip()
+                        break
         service_words = selected_service.get("words", "")
         service_refund = selected_service.get("refund_text", service_refund)
 
     # --- Travel info ---
-    travel_type = (extracted_info.get("primary_Arrival_or_departure") or "").lower()
-
+    travel_type = extracted_info.get("primary_Arrival_or_departure", "").lower()
     if interest == "vip":
         if travel_type == "departure":
             route_display, code, time, name = (
                 "Departure",
                 flight_data.get("origin_iata_code", ""),
-                f"{flight_data.get('org_hr', '')}:{flight_data.get('org_mn', '')}",
+                f"{flight_data.get('origin_time', '')}",
                 flight_data.get("originName", ""),
             )
         else:  # arrival by default
             route_display, code, time, name = (
                 "Arrival",
                 flight_data.get("destination_iata_code", ""),
-                f"{flight_data.get('des_hr', '')}:{flight_data.get('des_mn', '')}",
+                f"{flight_data.get('destination_time', '')}",
                 flight_data.get("destinationName", ""),
             )
     elif interest == "transfer":
@@ -129,14 +129,14 @@ def generate_single_invoice(extracted_info):
             route_display, code, time, name = (
                 "Departure",
                 flight_data.get("origin_iata_code", ""),
-                f"{flight_data.get('org_hr', '')}:{flight_data.get('org_mn', '')}",
+                f"{flight_data.get('origin_time', '')}",
                 flight_data.get("originName", ""),
             )
         else:  # arrival by default
             route_display, code, time, name = (
                 "Arrival",
                 flight_data.get("destination_iata_code", ""),
-                f"{flight_data.get('des_hr', '')}:{flight_data.get('des_mn', '')}",
+                f"{flight_data.get('destination_time', '')}",
                 flight_data.get("destinationName", ""),
             )
     # --- Currency + price ---
@@ -149,32 +149,32 @@ def generate_single_invoice(extracted_info):
     # --- Build invoice ---
     if interest == "vip":
         invoice = f"""<h2><b>BOOKING INVOICE - UpgradeVIP Services</b></h2>
-
+<br>
 <b>Flight Information:</b>
 - Flight: {extracted_info.get('primary_flight_number')} on {extracted_info.get('primary_flight_date')}
 - {route_display}:
   {code}
   {time}
   {name}
-<b> Service Type:</b> {service_name}
+<br><b> Service Type:</b> {service_name}
 
-<b>Service Details:</b>
+<br><b>Service Details:</b>
 - Adults: {extracted_info.get('primary_passenger_count')}
 - Luggage: {extracted_info.get('primary_luggage_count')} pieces
 - Meeting Time: {extracted_info.get('primary_preferred_time')}
 - Special Instructions: {extracted_info.get('primary_msg_for_steward')}
 
-<b>Payment Summary:</b>
+<br><b>Payment Summary:</b>
 - Service Price: {symbol}{price} {currency}
 - Total Amount: {symbol}{price} {currency}
 
-<b>Contact Information:</b>
+<br><b>Contact Information:</b>
 - Email: {extracted_info.get('primary_email')}
 
-<b>Description:</b>
+<br><b>Description:</b>
 - {service_words}
 
-<b>Important Notes:</b>
+<br><b>Important Notes:</b>
 - Service refund policy: {service_refund}
 - Please arrive 15 minutes before scheduled meeting time
 """
@@ -206,13 +206,10 @@ def generate_single_invoice(extracted_info):
 <br><b>Description:</b>
 - {service_words}
 
-<br><b>Important Notes:</b>
-- Service refund policy: {service_refund}
-- Driver will meet you at arrival area
 """
 
     logger.info("🎉 Invoice generated successfully!")
-    logger.info(f"📄 Invoice preview: {invoice[:100]}...")
+    logger.info(f"📄 Invoice preview: {invoice}...")
     return invoice
 
 def generate_combined_invoice(extracted_info):

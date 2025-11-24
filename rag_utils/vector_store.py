@@ -38,8 +38,8 @@ def load_documents(folder_path):
 
 def create_chunks(documents):
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200
+        chunk_size=3500,
+        chunk_overlap=450
         )
     docs = text_splitter.split_documents(documents)
     print(f"Created {len(docs)} chunks from {len(documents)} documents.")

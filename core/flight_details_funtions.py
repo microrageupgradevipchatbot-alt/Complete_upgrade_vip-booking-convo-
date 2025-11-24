@@ -1,5 +1,6 @@
 from rag_utils.setup import logger
 import os
+from .config import dev_url, api_key
 import requests
 from langchain.tools import tool
 #-------------------------------functions---------------------------------------
@@ -9,12 +10,6 @@ def get_flight_details_from_api(flight_number: str, flight_date: str) -> dict:
     logger.info(f"   - Flight Number: {flight_number}")
     logger.info(f"   - Flight Date: {flight_date}")
     
-    dev_url = os.getenv("DEV_URL")
-    api_key = os.getenv("API_KEY")
-
-    if not dev_url:
-        logger.error("❌ No API endpoint configured")
-        return {"error": "API configuration missing", "message": "Flight API endpoint not configured"}
 
     endpoint = f"{dev_url}get_flight_details?flight_number={flight_number}&flightdate={flight_date}"
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
@@ -30,19 +25,17 @@ def get_flight_details_from_api(flight_number: str, flight_date: str) -> dict:
             filtered_flights = []
             for flight in result.get("data", []):
                 filtered_flight = {
-                    "origin_iata_code": flight.get("origin_iata_code"),
-                    "org_hr": flight.get("org_hr"),
-                    "org_mn": flight.get("org_mn"),
-                    "date_departure": flight.get("date_departure"),
-                    "originName": flight.get("originName"),
-                    "destination_iata_code": flight.get("destination_iata_code"),
-                    "des_hr": flight.get("des_hr"),
-                    "des_mn": flight.get("des_mn"),
-                    "date_arrival": flight.get("date_arrival"),
-                    "destinationName": flight.get("destinationName"),
+                    "origin_iata_code": flight.get("origin_iata_code"),#"TLV",
+                    "originName": flight.get("originName"),#Ben Gurion Airport TLV
                     "origin_airport": flight.get("origin_airport"),
-                    "destination_airport": flight.get("destination_airport"),
                     "origin_time":flight.get("origin_time"),
+                    "destination_iata_code": flight.get("destination_iata_code"),
+                    "destinationName": flight.get("destinationName"),
+                    "destination_airport": flight.get("destination_airport"),
+                    "destination_time": flight.get("destination_time"),
+                    "date_departure": flight.get("date_departure"),
+                    "date_arrival": flight.get("date_arrival"),
+                 
                 }
                 filtered_flights.append(filtered_flight)
             return {
@@ -55,27 +48,23 @@ def get_flight_details_from_api(flight_number: str, flight_date: str) -> dict:
             return {"error": "Invalid JSON response", "message": "API returned invalid data format"}
     except Exception as e:
         return {"error": "Request failed", "message": str(e)}  
-def format_flight_choice_message_impl(flight_data: dict, flight_number: str = "", flight_date: str = "") -> str:
+def format_flight_choice_message_impl(flight_data: dict) -> str:
     logger.info(f"🚪 Inside Formatting flight choice message function")
-    # Handle API error or empty data
     if not flight_data or "data" not in flight_data or not flight_data["data"]:
-        # Check for specific API message
-        msg = flight_data.get("message", "")
-        if msg and "No Flights found" in msg:
-            return f"No Flights found for search results for flight number {flight_number} and date {flight_date}."
-        return "Sorry, flight details could not be retrieved. Make sure your flight number is correct and date is in MM/DD/YYYY format like 10/29/2025."
+        return "Sorry, flight details could not be retrieved make sure your flight number is correct and date is in MM/DD/YYYY format like 10/29/2025."
     info = flight_data["data"][0]
     msg = (
-        f"Departure:\n"
-        f"{info.get('origin_iata_code', '')}   {info.get('org_hr', '')}:{info.get('org_mn', '')}\n"
+        f"**Departure:**\n"
+        f"{info.get('origin_iata_code', '')}    {info.get('origin_time', '')}\n"
         f"{info.get('date_departure', '')}\n"
         f"{info.get('originName', '')}\n\n"
-        f"Arrival:\n"
-        f"{info.get('destination_iata_code', '')}   {info.get('des_hr', '')}:{info.get('des_mn', '')}\n"
+        f"**Arrival:**\n"
+        f"{info.get('destination_iata_code', '')}    {info.get('destination_time', '')}\n"
         f"{info.get('date_arrival', '')}\n"
         f"{info.get('destinationName', '')}\n\n"
         f"Which do you want to choose: arrival or departure?"
     )
+    logger.info(f"✈️ Formatted flight choice message: {msg}")
     return msg
 
 #=============================airports list function===========================
@@ -120,7 +109,6 @@ def get_airports_from_api() -> dict:
     except Exception as e:
         logger.error(f"❌ Airports API request failed: {e}")
         return {"error": "Request failed", "message": str(e)}
-
 def format_airports_message(airports_data: dict) -> str:
     if not airports_data or "data" not in airports_data or not airports_data["data"]:
         return "Sorry, airport list could not be retrieved."

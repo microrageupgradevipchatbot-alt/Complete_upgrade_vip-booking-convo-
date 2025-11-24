@@ -3,60 +3,48 @@ from typing import Optional
 from rag_utils.setup import logger
 import uuid
 from core.Agent_setup import agent
-from rag_utils.prompt import FINAL_SYSTEM_PROMPT
 from langchain_core.messages import AIMessage, SystemMessage
 import asyncio
 
-def main():
-    print("🚀 UpgradeVIP Terminal Chat Started!")
-    session_id = str(uuid.uuid4())
-    system_message_sent = False
+import asyncio
 
+async def main():
+    print("UpgradeVIP Flight Bot (type 'exit' to quit)")
+    session_id = str(uuid.uuid4())
     while True:
         user_input = input("You: ").strip()
-        logger.info("session_id: " + session_id)
-        if user_input.lower() in ["exit", "quit"]:
-            print("👋 Exiting. Goodbye!")
+        if user_input.lower() == "exit":
+            print("Goodbye!")
             break
-
-        messages_to_send = []
-        if not system_message_sent:
-            messages_to_send.append({"role": "system", "content": FINAL_SYSTEM_PROMPT})
-            system_message_sent = True
-
-        messages_to_send.append({"role": "user", "content": user_input})
+        messages_to_send = [{"role": "user", "content": user_input}]
+        logger.info(f"📥 Messages sending to llm: {messages_to_send}")
 
         try:
-            result = agent.invoke(
-                {
-                    "messages": messages_to_send
-                },
+            result = await agent.ainvoke(
+                {"messages": messages_to_send},
                 config={
                     "configurable": {"thread_id": session_id},
                     "max_iterations": 5
                 }
             )
-            logger.info(f"response: {result}")
+            logger.info(f"🔄 Agent response: {result}")
+
             messages = result.get("messages", [])
             bot_reply = None
-
             for m in reversed(messages):
                 if isinstance(m, AIMessage):
                     bot_reply = getattr(m, "content", None)
                     break
-
-            if isinstance(bot_reply, list) and len(bot_reply) > 0 and isinstance(bot_reply[0], dict):
-                bot_reply = bot_reply[0].get("text", "")
-
-            if not bot_reply:
-                bot_reply = "Sorry, I am encountering some issues. Please try again later."
-
-            print(f"Assistant: {bot_reply}")
+            logger.info(f"\n\n🤖 Bot({session_id}): {bot_reply}")
+             # Fix: Extract text if bot_reply is a list of dicts
+            if isinstance(bot_reply, list) and bot_reply and isinstance(bot_reply[0], dict) and "text" in bot_reply[0]:
+                print(f"🤖 Bot: {bot_reply[0]['text']}")
+            else:
+                print(f"🤖 Bot: {bot_reply}")
 
         except Exception as e:
-            logger.error(f"❌ Error: {e}")
-            print("Assistant: Sorry, I am encountering some issues. Please try again later.")
+            logger.error(f"❌ Error during agent invocation: {e}")
+            print("🤖 Bot: Sorry, something went wrong. Please try again later.")
 
 if __name__ == "__main__":
-    main()
-    
+    asyncio.run(main())

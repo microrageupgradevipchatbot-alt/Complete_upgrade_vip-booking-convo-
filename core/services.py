@@ -1,10 +1,11 @@
 from langchain.tools import tool
-
+from .config import dev_url, api_key
 import os
 import requests
 from rag_utils.setup import logger
 #-------------------------------functions---------------------------------------
 #=============================transport services function===========================
+
 def get_transport_services(airport_id: str, currency: str) -> dict:
     # Validate currency parameter
     if not currency or currency.strip() == "":
@@ -12,13 +13,9 @@ def get_transport_services(airport_id: str, currency: str) -> dict:
         return {"error": "Currency not specified", "message": "Please select a currency preference first."}
     
     logger.info(f"🚗 Calling Transport services API - airport_id={airport_id}, currency={currency}")
-    dev_url = os.getenv("DEV_URL")
-    api_key = os.getenv("API_KEY")
+    
 
-    if not dev_url:
-        logger.error("❌ No transport services API endpoint configured")
-        return {"error": "API configuration missing", "message": "Transport services API endpoint not configured"}
-
+    
     endpoint = f"{dev_url}get_vehicles?is_arrival=1&airport_id={airport_id}&currency={currency}"
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
@@ -28,7 +25,7 @@ def get_transport_services(airport_id: str, currency: str) -> dict:
         response.raise_for_status()
         try:
             result = response.json()
-            logger.info("✅ Successfully connected to transport services API (Production)")
+            logger.info(f"✅ Successfully connected to transport services API (Production:{result})")
             # Filter out unnecessary fields from each vehicle card
             filtered_vehicles = []
             for vehicle in result.get("data", []):
@@ -52,71 +49,55 @@ def get_transport_services(airport_id: str, currency: str) -> dict:
             }
         except Exception as e:
             logger.error(f"❌ Invalid JSON response from Production: {e}")
-            return {"error": "Invalid JSON response", "message": "Transport services API returned invalid data format"}
+            return "Invalid Json response "
     except Exception as e:
         logger.error(f"❌ Transport services API request failed: {e}")
-        return {"error": "Request failed", "message": str(e)}
-    
+        return "Sorry API request for vehicles failed "
 def format_transport_services_message(transport_data, flight_data, passenger_count, preferred_currency, arrival_or_departure=None):
-    logger.info(f"🚪 Inside Formatting flight choice message function")
+    logger.info(f"🚪 Inside Formatting transport services message function")
     vehicles = transport_data.get("data", []) if transport_data else []
     if not vehicles:
         return "Sorry, no transport services are available for your selected flight and requirements."
 
-    try:
-        passenger_count_int = int(passenger_count) if passenger_count is not None else 0
-        if passenger_count_int <= 0:
-            return "Invalid passenger count. Please provide a valid number of adults (1-10)."
-        if passenger_count_int > 10:
-            return "Sorry, we cannot accommodate more than 10 adults. Please enter a number between 1 and 10."
-    except (ValueError, TypeError):
-        return "Invalid passenger count. Please provide a valid number of adults (1-10)."
+    def _clean_vehicle_title(name_full: str) -> str:
+        s = (name_full or "Transport Service").strip()
+        # If has "(...)", keep up to and including ')'
+        if "(" in s and ")" in s and s.find("(") < s.find(")"):
+            return s[: s.find(")") + 1].strip()
+        # Else drop class/descriptors
+        for sep in [" - ", ", or similar", ", or", ", similar", ","]:
+            if sep in s:
+                return s.split(sep)[0].strip()
+        return s
 
-    flight_info = flight_data.get("data", [{}])[0] if flight_data else {}
-
-    # Determine direction and airport info
-    direction = "ARRIVAL"
-    airport_name = flight_info.get("destinationName", "")
-    flight_date = flight_info.get("date_arrival", "")
-    flight_time = f"{flight_info.get('des_hr', '')}:{flight_info.get('des_mn', '')}"
-
-    # Use arrival_or_departure if provided
-    if arrival_or_departure is None:
-        # Try to get from flight_info or default to "arrival"
-        arrival_or_departure = arrival_or_departure.lower()
-
-    if arrival_or_departure == "departure":
-        direction = "DEPARTURE"
-        airport_name = flight_info.get("originName", "")
-        flight_date = flight_info.get("date_departure", "")
-        flight_time = f"{flight_info.get('org_hr', '')}:{flight_info.get('org_mn', '')}"
-
-    currency_symbols = {
-        "USD": "$",
-        "EUR": "€",
-        "GBP": "£"
-    }
+    currency_symbols = {"USD": "$", "EUR": "€", "GBP": "£"}
     symbol = currency_symbols.get(preferred_currency, "$")
 
-    msg = f"{airport_name}\n{flight_date} {flight_time}\n{direction}\n\n"
-    msg += "Available Transport Services:\n\n"
+    msg = "Available Transport Services:\n\n"
 
     for i, vehicle in enumerate(vehicles, 1):
-        name = vehicle.get("name", "Transport Service")
+        name_full = vehicle.get("name", "Transport Service")
+        name = _clean_vehicle_title(name_full)
         price = vehicle.get("price", 0)
-        msg += f"{i}. {name}    {symbol}{price}\n\n"
+        msg += f"{i}. **Title:** {name}\n"
+        msg += f"   **Price:** {symbol}{price}\n"
+        msg += f"**Description:**\n"
         words = vehicle.get("words", "")
         if words:
             details = [detail.strip() for detail in words.split(",")]
             for detail in details:
                 if detail:
                     msg += f"{detail}\n"
+        else:
+            msg += "Not specified\n"
         msg += "\n" + "="*50 + "\n\n"
 
     msg += "Please select a transport service by typing the number (e.g., '1', '2', etc.)"
+    logger.info(f"🚗 Formatted transport services message: {msg}")
     return msg
 
 #=============================vip services function===========================
+
 def get_vip_services(airport_id: str, travel_type: str, currency: str, service_id: str = None) -> dict:
     # Validate currency parameter
     if not currency or currency.strip() == "":
@@ -124,12 +105,7 @@ def get_vip_services(airport_id: str, travel_type: str, currency: str, service_i
         return {"error": "Currency not specified", "message": "Please select a currency preference first."}
     
     logger.info(f"🛎️ Calling VIP services API - airport_id={airport_id}, travel_type={travel_type}, currency={currency}")
-    dev_url = os.getenv("DEV_URL")
-    api_key = os.getenv("API_KEY")
-
-    if not dev_url:
-        logger.error("❌ No VIP services API endpoint configured")
-        return {"error": "API configuration missing", "message": "VIP services API endpoint not configured"}
+    
 
     endpoint = f"{dev_url}vip_services?airport_id={airport_id}&travel_type={travel_type}&currency={currency}&service_id={service_id}"
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
@@ -175,77 +151,57 @@ def get_vip_services(airport_id: str, travel_type: str, currency: str, service_i
             }
         except Exception as e:
             logger.error(f"❌ Invalid JSON response from Production: {e}")
-            return {"error": "Invalid JSON response", "message": "VIP services API returned invalid data format"}
+            return "Sorry Invalid JSON response from VIP services API"
     except Exception as e:
         logger.error(f"❌ VIP services API request failed: {e}")
-        return {"error": "Request failed", "message": str(e)}
-
+        return "Sorry VIP services API request failed"
 def format_vip_services_message(vip_data, flight_data, travel_type, passenger_count, preferred_currency):
     logger.info(f"🚪 Inside Formatting vip_services function")
-    logger.info(f"pessenger_count: {passenger_count}")
-    # Check for services in 'data' field (actual API response format)
     services = vip_data.get("data", []) if vip_data else []
     if not services:
         return "Sorry, no VIP services are available for your selected flight and requirements."
     
-    # Validate passenger count
     try:
         passenger_count_int = int(passenger_count) if passenger_count is not None else 0
         if passenger_count_int <= 0:
             return "Invalid passenger count. Please provide a valid number of adults (1-10)."
-        
         if passenger_count_int > 10:
             return "Sorry, we cannot accommodate more than 10 adults. Please enter a number between 1 and 10."
     except (ValueError, TypeError):
         return "Invalid passenger count. Please provide a valid number of adults (1-10)."
     
-    # Get flight info for header
-    flight_info = flight_data.get("data", [{}])[0] if flight_data else {}
-    airport_name = flight_info.get("originName", "") if travel_type == "Departure" else flight_info.get("destinationName", "")
-    flight_date = flight_info.get("date_departure", "") if travel_type == "Departure" else flight_info.get("date_arrival", "")
-    flight_time = f"{flight_info.get('org_hr', '')}:{flight_info.get('org_mn', '')}" if travel_type == "Departure" else f"{flight_info.get('des_hr', '')}:{flight_info.get('des_mn', '')}"
-    
-    # Currency symbols
-    currency_symbols = {
-        "USD": "$",
-        "EUR": "€", 
-        "GBP": "£"
-    }
+    currency_symbols = {"USD": "$", "EUR": "€", "GBP": "£"}
     symbol = currency_symbols.get(preferred_currency, "$")
     
-    # Build header
-    msg = f"{airport_name}\n{flight_date} {flight_time}\n{travel_type.upper()}\n\n"
-    msg += "Available VIP Services:\n\n"
-    
-    # Format each service
+    msg = "Available VIP Services:\n\n"
     for i, service in enumerate(services, 1):
         title = service.get("title", "VIP Service")
-        
-        # Get price based on passenger count
         price_key = f"adults_{passenger_count}"
         price = service.get(price_key, service.get("price", 0))
-        
-        msg += f"{i}. {title}\n"
-        msg += f"PRICE: {symbol}{price}\n\n"
-        
-        # Cancellation policy
         refund_text = service.get("refund_text", "")
-        if refund_text:
-            msg += f"Cancellations and modifications: {refund_text}\n\n"
-        
-        # Parse and format service details from 'words' field
         words = service.get("words", "")
+        
+        msg += f"{i}. Title: **{title}**\n"
+        msg += f"   PRICE: {symbol}{price}\n\n"
+        
+        msg += "**Cancellations and modifications:**\n"
+        if refund_text:
+            msg += f"  {refund_text}\n\n"
+        else:
+            msg += "   Not specified\n\n"
+        
+        msg += "**Description:**\n"
         if words:
-            # Split by comma and format each detail
             details = [detail.strip() for detail in words.split(",")]
             for detail in details:
                 if detail:
-                    msg += f"{detail}\n"
+                    msg += f"  {detail}\n"
+        else:
+            msg += "   Not specified\n"
         
         msg += "\n" + "="*50 + "\n\n"
-    
+    logger.info(f"✈️ Formatted VIP services message: {msg}")
     msg += "Please select a service by typing the number (e.g., '1', '2', etc.)"
-    
     return msg
 
 #--------------------------------------tools-----------------------------------------
@@ -288,6 +244,7 @@ def format_vip_services_tool(vip_data, flight_data, travel_type, passenger_count
     return format_vip_services_message(vip_data, flight_data, travel_type, passenger_count, preferred_currency)
 
 #for transfer services
+
 @tool
 def transport_services_tool(airport_id: str, currency: str) -> dict:
     """ Call external API to fetch available transport services for the selected airport and currency.

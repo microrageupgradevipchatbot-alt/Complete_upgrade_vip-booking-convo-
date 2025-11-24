@@ -1,43 +1,42 @@
-import uuid
 import streamlit as st
+import uuid
+from rag_utils.prompt import SYSTEM_PROMPT
 from rag_utils.setup import logger
 from core.Agent_setup import agent
-from rag_utils.prompt import FINAL_SYSTEM_PROMPT
 from langchain_core.messages import AIMessage
-
 # ---------- Page config ----------
 st.set_page_config(
     page_title="UpgradeVIP Chatbot",
-    page_icon="✈️",
+    page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ---------- Premium styling ----------
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-html, body, [class*="css"]  { font-family: 'Inter', sans-serif; }
-.main-header {
-  padding: 24px 28px;
-  background: linear-gradient(135deg,#0f172a 0%, #111827 40%, #1f2937 100%);
-  border-radius: 18px;
-  color: #fff;
-  border: 1px solid rgba(255,255,255,.08);
-  box-shadow: 0 10px 30px rgba(0,0,0,.15);
-}
-.main-header h1 { margin: 0 0 6px 0; font-size: 34px; font-weight: 700; letter-spacing:.2px; }
-.main-header p { margin: 0; opacity: .85; }
-.chat-card {
-  padding: 20px 22px;
-  background: #ffffff;
-  border-radius: 14px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 6px 18px rgba(0,0,0,.04);
-}
-.small-muted { color: #6b7280; font-size: 12px; }
-</style>
-""", unsafe_allow_html=True)
+# st.markdown("""
+# <style>
+# @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+# html, body, [class*="css"]  { font-family: 'Inter', sans-serif; }
+# .main-header {
+#   padding: 24px 28px;
+#   background: linear-gradient(135deg,#0f172a 0%, #111827 40%, #1f2937 100%);
+#   border-radius: 18px;
+#   color: #fff;
+#   border: 1px solid rgba(255,255,255,.08);
+#   box-shadow: 0 10px 30px rgba(0,0,0,.15);
+# }
+# .main-header h1 { margin: 0 0 6px 0; font-size: 34px; font-weight: 700; letter-spacing:.2px; }
+# .main-header p { margin: 0; opacity: .85; }
+# .chat-card {
+#   padding: 20px 22px;
+#   background: #ffffff;
+#   border-radius: 14px;
+#   border: 1px solid #e5e7eb;
+#   box-shadow: 0 6px 18px rgba(0,0,0,.04);
+# }
+# .small-muted { color: #6b7280; font-size: 12px; }
+# </style>
+# """, unsafe_allow_html=True)
 
 # ---------- Session state ----------
 if "session_id" not in st.session_state:
@@ -121,55 +120,74 @@ def extract_text_from_ai(content) -> str:
 
 def call_agent(user_text: str) -> str:
     messages_to_send = []
-    if not st.session_state.system_sent:
-        messages_to_send.append({"role": "system", "content": FINAL_SYSTEM_PROMPT})
-        st.session_state.system_sent = True
+    
 
     messages_to_send.append({"role": "user", "content": user_text})
     logger.info(f"📥 Messages sending to llm: {messages_to_send}")
+    try:
+        result = agent.invoke(
+            {"messages": messages_to_send},
+            config={
+                "configurable": {"thread_id": st.session_state.session_id},
+                "max_iterations": 5,
+            },
+        )
+        logger.info(f"🔄 Agent response: {result}")
 
-    result = agent.invoke(
-        {"messages": messages_to_send},
-        config={
-            "configurable": {"thread_id": st.session_state.session_id},
-            "max_iterations": 5,
-        },
-    )
-    logger.info(f"🔄 Agent response: {result}")
+        # Find latest AI message
+        messages = result.get("messages", [])
+        bot_reply = ""
+        for m in reversed(messages):
+            if isinstance(m, AIMessage):
+                bot_reply = getattr(m, "content", None)
+                break
 
-    # Find latest AI message
-    messages = result.get("messages", [])
-    bot_reply = ""
-    for m in reversed(messages):
-        if isinstance(m, AIMessage):
-            bot_reply = extract_text_from_ai(getattr(m, "content", None))
-            break
+        # Handle string or list response
+        if isinstance(bot_reply, list) and bot_reply and isinstance(bot_reply[0], dict) and "text" in bot_reply[0]:
+            bot_reply_text = bot_reply[0]["text"]
+        else:
+            bot_reply_text = extract_text_from_ai(bot_reply)
 
-    if not bot_reply:
-        bot_reply = "Sorry, I am encountering some issues. Please try again later."
-    return bot_reply
+        if not bot_reply_text:
+            bot_reply_text = "Sorry, I am encountering some issues. Please try again later."
 
+        # bot_reply_text = bot_reply_text.replace("\n\n", "\n")
+        logger.info(f"✅ Agent invocation successful.{bot_reply_text}")
+        return bot_reply_text
+    except Exception as e:
+        logger.error(f"❌ Agent invocation failed: {e}")
+        return "Sorry, I am encountering some issues. Please try again later."
 # ---------- Chat history display ----------
 with st.container():
     for role, content in st.session_state.chat:
         with st.chat_message("user" if role == "user" else "assistant"):
             st.markdown(content)
 
+
+
+# Add pending_reply to session state (put this after your other session state initializations)
+if "pending_reply" not in st.session_state:
+    st.session_state.pending_reply = None
+
+
 # ---------- Input ----------
 prompt = st.chat_input("Type your message and press Enter...")
 if prompt:
-    # Show user message immediately
+    # Add user message to chat
     st.session_state.chat.append(("user", prompt))
-    with st.chat_message("user"):
+    
+    # ...existing code...
+    # Display user message immediately
+    with st.chat_message("user", avatar="🧑"):
         st.markdown(prompt)
-
-    # Call agent synchronously (no event-loop issues)
-    with st.chat_message("assistant"):
+    
+    # Show assistant typing with spinner
+    with st.chat_message("assistant", avatar="🤖"):
         with st.spinner("Typing..."):
-            try:
-                reply = call_agent(prompt)
-            except Exception as e:
-                logger.error(f"❌ Error: {e}")
-                reply = "Sorry, I am encountering some issues. Please try again later."
-        st.markdown(reply)
-        st.session_state.chat.append(("assistant", reply))
+            reply = call_agent(prompt)
+        st.markdown(f"```\n{reply}\n```")
+
+# ...existing code...
+    
+    # Add assistant reply to chat
+    st.session_state.chat.append(("assistant", reply))

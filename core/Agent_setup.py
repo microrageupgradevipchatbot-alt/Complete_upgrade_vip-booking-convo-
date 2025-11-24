@@ -1,7 +1,8 @@
 from rag_utils.setup import logger
 from .tools import tools
-from rag_utils.prompt import build_prompt,build_prompt_v3
+from rag_utils.prompt import build_prompt,build_prompt_v3,build_prompt_v5
 import os
+from rag_utils.prompt import SYSTEM_PROMPT
 #====================================langgraph agent setup=========================================
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.prebuilt import create_react_agent
@@ -32,7 +33,7 @@ def get_gemini_llm():
     return llm
 def get_gemini_response(query,context,chat_history):
     #api_key = os.getenv("GOOGLE_API_KEY")
-    prompt = build_prompt_v3(query, context,chat_history)
+    prompt = build_prompt_v5(query, context,chat_history)
     llm = get_gemini_llm()
     return llm.invoke(prompt).content
 
@@ -44,5 +45,6 @@ agent = create_react_agent(
     llm,
     tools=tools,
     checkpointer=memory,  # save convo in RAM
+    prompt=SYSTEM_PROMPT,
   #  pre_model_hook=trim_messages,  # run trimming before each model call     
 )
