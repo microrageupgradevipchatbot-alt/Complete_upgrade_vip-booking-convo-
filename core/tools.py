@@ -1,19 +1,22 @@
 from langchain.tools import tool
 from .flight_details_funtions import (airports_tool,
                                       flight_details_tool,
-                                      format_flight_choice_tool)
+                                      format_flight_choice_tool,
+                                      airports_raw_tool)
 from .services import (
     transport_services_tool,
     format_transport_services_tool,
     vip_services_tool,
-    format_vip_services_tool
+    format_vip_services_tool,
+    only_vip_services_tool,
+    only_transfer_services_tool
 )
 from .invoice import (
     single_generate_invoice_tool,
     generate_combined_invoice_tool,
     send_email_tool)
 
-
+# from .flight_details_funtions import vip_services_by_airport_name_tool, transport_services_by_airport_name_tool
 from rag_utils.vector_store import checking_vector_store
 from rag_utils.retriever import get_context
 from rag_utils.setup import logger
@@ -57,5 +60,9 @@ tools = [
     send_email_tool,
     
     single_generate_invoice_tool,
-    generate_combined_invoice_tool
+    generate_combined_invoice_tool,
+
+    only_vip_services_tool,
+    only_transfer_services_tool,
+    airports_raw_tool,
 ]

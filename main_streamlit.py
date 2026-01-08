@@ -45,8 +45,13 @@ if "system_sent" not in st.session_state:
     st.session_state.system_sent = False
 if "chat" not in st.session_state:
     st.session_state.chat = [
-        ("assistant", "Welcome to UpgradeVIP ✈️\nWe offer Airport VIP and Airport Transfers. How can I help you today?")
-    ]
+("assistant", 
+         "Good day. Welcome to UpgradeVIP – where seamless luxury travel is our standard.\n"
+         "I'm here to ensure every detail of your journey is impeccably arranged.\n\n How may I be of service today?\n\n"
+         "**Airport VIP Services** – Fast-track security, lounge access, and meet & greet  \n"
+         "**Airport Transfer Services** – Chauffeur-driven transfers tailored to your schedule\n\n"
+         "What may I arrange to ensure a seamless journey?"
+        )]
 
 # ---------- Header ----------
 st.markdown("""
@@ -65,7 +70,13 @@ with st.sidebar:
     with col_a:
         if st.button("New chat"):
             st.session_state.chat = [
-                ("assistant", "Welcome to UpgradeVIP ✈️\nWe offer Airport VIP and Airport Transfers. How can I help you today?")
+                ("assistant", 
+         "Good day. Welcome to UpgradeVIP – where seamless luxury travel is our standard.\n"
+         "I'm here to ensure every detail of your journey is impeccably arranged.\n\n How may I be of service today?\n\n"
+         "**Airport VIP Services** – Fast-track security, lounge access, and meet & greet  \n"
+         "**Airport Transfer Services** – Chauffeur-driven transfers tailored to your schedule\n\n"
+         "What may I arrange to ensure a seamless journey?"
+        )
             ]
             st.session_state.system_sent = False
             st.session_state.session_id = str(uuid.uuid4())
@@ -157,6 +168,7 @@ def call_agent(user_text: str) -> str:
     except Exception as e:
         logger.error(f"❌ Agent invocation failed: {e}")
         return "Sorry, I am encountering some issues. Please try again later."
+
 # ---------- Chat history display ----------
 with st.container():
     for role, content in st.session_state.chat:
@@ -185,7 +197,7 @@ if prompt:
     with st.chat_message("assistant", avatar="🤖"):
         with st.spinner("Typing..."):
             reply = call_agent(prompt)
-        st.markdown(f"```\n{reply}\n```")
+        st.markdown(reply, unsafe_allow_html=True)
 
 # ...existing code...
     

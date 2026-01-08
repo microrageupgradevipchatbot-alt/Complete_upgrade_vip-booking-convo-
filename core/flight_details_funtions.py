@@ -3,6 +3,7 @@ import os
 from .config import dev_url, api_key
 import requests
 from langchain.tools import tool
+from .services import get_vip_services, get_transport_services
 #-------------------------------functions---------------------------------------
 #=============================flight details function===========================
 def get_flight_details_from_api(flight_number: str, flight_date: str) -> dict:
@@ -70,15 +71,8 @@ def format_flight_choice_message_impl(flight_data: dict) -> str:
 #=============================airports list function===========================
 def get_airports_from_api() -> dict:
     """
-    Fetch airports list from external API and filter only airport_name for each entry.
+    Fetch airports list from external API and return only id and airport_name for each entry.
     """
-    dev_url = os.getenv("DEV_URL")
-    api_key = os.getenv("API_KEY")
-
-    if not dev_url:
-        logger.error("❌ No API endpoint configured")
-        return {"error": "API configuration missing", "message": "Airports API endpoint not configured"}
-
     endpoint = f"{dev_url}get_airports"
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
@@ -88,16 +82,17 @@ def get_airports_from_api() -> dict:
         response.raise_for_status()
         try:
             result = response.json()
-            logger.info(f"🔗 Successfully connected to airports API: {str(result)[:100]}")
+            logger.info(f"🔗 Successfully connected to airports API: {result}")
 
-            # Filter only airport_name for each airport
+            # Filter only id and airport_name for each airport
             filtered_airports = []
             for airport in result.get("data", []):
                 filtered_airports.append({
+                    "id": airport.get("id", ""),
                     "airport_name": airport.get("airport_name", "")
                 })
             
-            logger.info(f"✂️ After trimming : {filtered_airports[:50]}")
+            logger.info(f"✂️ After trimming : {filtered_airports}")
             return {
                 "code": result.get("code", 1),
                 "message": result.get("message", "success"),
@@ -110,6 +105,7 @@ def get_airports_from_api() -> dict:
         logger.error(f"❌ Airports API request failed: {e}")
         return {"error": "Request failed", "message": str(e)}
 def format_airports_message(airports_data: dict) -> str:
+    logger.info(f"🚪 Inside Formatting airports message function")
     if not airports_data or "data" not in airports_data or not airports_data["data"]:
         return "Sorry, airport list could not be retrieved."
     return "\n".join(f"{i+1}) {a['airport_name']}" for i, a in enumerate(airports_data["data"]))
@@ -121,6 +117,13 @@ def airports_tool():
     """Fetch and format airport list for user selection."""
     airports_data = get_airports_from_api()
     return format_airports_message(airports_data)
+@tool
+def airports_raw_tool() -> dict:
+    """
+    Fetch the raw airport list from the external API.
+    Returns the full JSON/dict response from get_airports_from_api().
+    """
+    return get_airports_from_api()
 #for flight details
 @tool
 def flight_details_tool(flight_number: str, flight_date: str):
@@ -145,4 +148,6 @@ def format_flight_choice_tool(flight_data: dict) -> str:
     if isinstance(flight_data, dict) and "data" not in flight_data and "flight_no" in flight_data:
         flight_data = {"data": [flight_data]}
     return format_flight_choice_message_impl(flight_data)
+
+#=============================Get Services by Airport Name===========================
 

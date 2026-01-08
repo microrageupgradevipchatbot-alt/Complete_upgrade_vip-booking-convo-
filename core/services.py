@@ -59,25 +59,14 @@ def format_transport_services_message(transport_data, flight_data, passenger_cou
     if not vehicles:
         return "Sorry, no transport services are available for your selected flight and requirements."
 
-    def _clean_vehicle_title(name_full: str) -> str:
-        s = (name_full or "Transport Service").strip()
-        # If has "(...)", keep up to and including ')'
-        if "(" in s and ")" in s and s.find("(") < s.find(")"):
-            return s[: s.find(")") + 1].strip()
-        # Else drop class/descriptors
-        for sep in [" - ", ", or similar", ", or", ", similar", ","]:
-            if sep in s:
-                return s.split(sep)[0].strip()
-        return s
-
+    
     currency_symbols = {"USD": "$", "EUR": "€", "GBP": "£"}
     symbol = currency_symbols.get(preferred_currency, "$")
 
     msg = "Available Transport Services:\n\n"
 
     for i, vehicle in enumerate(vehicles, 1):
-        name_full = vehicle.get("name", "Transport Service")
-        name = _clean_vehicle_title(name_full)
+        name = vehicle.get("name", "Transport Service")
         price = vehicle.get("price", 0)
         msg += f"{i}. **Title:** {name}\n"
         msg += f"   **Price:** {symbol}{price}\n"
@@ -277,5 +266,41 @@ def format_transport_services_tool(transport_data, flight_data, passenger_count,
     return format_transport_services_message(transport_data, flight_data, passenger_count, preferred_currency, arrival_or_departure)
 
 
+@tool
+def only_vip_services_tool(airport_id: str, travel_type: str, currency: str, passenger_count: int, flight_data: dict = None, service_id: str = None) -> str:
+    """
+    Fetch and format VIP services in one step.
+
+    Parameters:
+      airport_id (str): The airport ID.
+      travel_type (str): "Arrival" or "Departure".
+      currency (str): User's preferred currency (USD, EUR, GBP).
+      passenger_count (int): Number of adults.
+      flight_data (dict, optional): Flight details object (can be None).
+      service_id (str, optional): Service ID (default None).
+
+    Returns:
+      str: Formatted VIP services message.
+    """
+    vip_data = get_vip_services(airport_id, travel_type, currency, service_id)
+    return format_vip_services_message(vip_data, flight_data, travel_type, passenger_count, currency)
+
+@tool
+def only_transfer_services_tool(airport_id: str, currency: str, passenger_count: int, flight_data: dict = None, arrival_or_departure: str = None) -> str:
+    """
+    Fetch and format transfer services in one step.
+
+    Parameters:
+      airport_id (str): The airport ID.
+      currency (str): User's preferred currency (USD, EUR, GBP).
+      passenger_count (int): Number of adults.
+      flight_data (dict, optional): Flight details object (can be None).
+      arrival_or_departure (str, optional): "Arrival" or "Departure" (default None).
+
+    Returns:
+      str: Formatted transfer services message.
+    """
+    transport_data = get_transport_services(airport_id, currency)
+    return format_transport_services_message(transport_data, flight_data, passenger_count, currency, arrival_or_departure)
 
 

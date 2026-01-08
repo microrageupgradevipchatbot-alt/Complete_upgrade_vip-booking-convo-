@@ -38,18 +38,8 @@ async def message_endpoint(req: MessageRequest):
 
 
         # Get current state to check for existing system message
-        current_state = await agent.aget_state({"configurable": {"thread_id": session_id}})
-        current_messages = current_state.values.get("messages", []) if current_state else []
         
-        # Check if system message already exists
-        has_system_message = any(isinstance(msg, SystemMessage) for msg in current_messages)
-        
-        messages_to_send = []
-        if not has_system_message:
-            messages_to_send.append({"role": "system", "content": FINAL_SYSTEM_PROMPT})
-        
-        
-        messages_to_send.append({"role": "user", "content": user_input})
+        messages_to_send=[{"role": "user", "content": user_input}]
         logger.info(f"📥 Messages sending to llm: {messages_to_send}")
         
         result = await agent.ainvoke(
@@ -83,28 +73,4 @@ async def message_endpoint(req: MessageRequest):
             "session": req.session or str(uuid.uuid4())
         }
     
-    
-    
-    # bot_reply = None
-    
-    # for m in reversed(messages):
-    #     if isinstance(m, AIMessage):
-    #         bot_reply = getattr(m, "content", None)
-    #         break
-    # print("✅Bot Reply:", bot_reply)
-    # return {"bot_reply": bot_reply, "session": session_id}
-
-"""
-   for m in reversed(messages):
-        if hasattr(m, "name") and m.name == "rag_query_tool" and hasattr(m, "content"):
-            bot_reply = m.content
-            break
-        if not bot_reply:
-            for m in reversed(messages):
-                if isinstance(m, AIMessage):
-                    bot_reply = getattr(m, "content", None)
-                    break
-    
-    return {"bot_reply": bot_reply, "session": session_id}
-
-"""
+   
