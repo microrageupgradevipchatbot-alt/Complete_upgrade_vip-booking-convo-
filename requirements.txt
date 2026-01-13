@@ -7,3 +7,4 @@ langchain-google-genai
 google-generativeai
 chromadb
 requests
+langchain-chroma

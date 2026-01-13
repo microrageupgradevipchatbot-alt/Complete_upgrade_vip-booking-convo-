@@ -2,6 +2,7 @@ from langchain.tools import tool
 from .config import dev_url, api_key
 import requests
 from rag_utils.setup import logger
+from typing import Optional  # <-- add
 #-------------------------------functions---------------------------------------
 #=============================transport services function===========================
 
@@ -211,9 +212,14 @@ def vip_services_tool(airport_id: str, travel_type: str, currency: str, service_
     depending on whether the user is booking a primary or secondary service, and based on the user's arrival/departure selection.
     """
     return get_vip_services(airport_id, travel_type, currency, service_id)
-
 @tool
-def format_vip_services_tool(vip_data, flight_data, travel_type, passenger_count, preferred_currency) -> str:
+def format_vip_services_tool(
+    vip_data: Optional[dict] = None,
+    flight_data: Optional[dict] = None,
+    travel_type: Optional[str] = None,
+    passenger_count: Optional[int] = None,
+    preferred_currency: Optional[str] = None,
+) -> str:
     """Format VIP services into a user-friendly message after calling vip_services_tool."""
     if (
         isinstance(vip_data, dict)
@@ -228,6 +234,19 @@ def format_vip_services_tool(vip_data, flight_data, travel_type, passenger_count
         and isinstance(flight_data["flight_details_tool_response"], dict)
     ):
         flight_data = flight_data["flight_details_tool_response"]
+    vip_data = vip_data or {}
+    flight_data = flight_data or {}
+
+    # Guardrails for missing essentials
+    missing = []
+    if travel_type is None:
+        missing.append("travel_type")
+    if passenger_count is None:
+        missing.append("passenger_count")
+    if preferred_currency is None:
+        missing.append("preferred_currency")
+    if missing:
+        return "To format VIP services, please provide: " + ", ".join(missing) + "."
 
     return format_vip_services_message(vip_data, flight_data, travel_type, passenger_count, preferred_currency)
 
@@ -245,9 +264,14 @@ def transport_services_tool(airport_id: str, currency: str) -> dict:
     depending on whether the user is booking a primary or secondary service, and based on the user's arrival/departure selection.
    """
     return get_transport_services(airport_id, currency)
-
 @tool
-def format_transport_services_tool(transport_data, flight_data, passenger_count, preferred_currency, arrival_or_departure=None) -> str:
+def format_transport_services_tool(
+    transport_data: Optional[dict] = None,
+    flight_data: Optional[dict] = None,
+    passenger_count: Optional[int] = None,
+    preferred_currency: Optional[str] = None,
+    arrival_or_departure: Optional[str] = None,
+) -> str:
     """Format transfer services into a user-friendly message after calling transport_services_tool"""
     if (
         isinstance(transport_data, dict)
@@ -262,6 +286,21 @@ def format_transport_services_tool(transport_data, flight_data, passenger_count,
         and isinstance(flight_data["flight_details_tool_response"], dict)
     ):
         flight_data = flight_data["flight_details_tool_response"]
+    
+    transport_data = transport_data or {}
+    flight_data = flight_data or {}
+
+    missing = []
+    if passenger_count is None:
+        missing.append("passenger_count")
+    if preferred_currency is None:
+        missing.append("preferred_currency")
+    if missing:
+        return "To format transport services, please provide: " + ", ".join(missing) + "."
+
+
+    
+    
     return format_transport_services_message(transport_data, flight_data, passenger_count, preferred_currency, arrival_or_departure)
 
 
