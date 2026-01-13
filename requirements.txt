@@ -8,7 +8,4 @@ langchain-google-genai
 google-generativeai
 chromadb
 requests
-<<<<<<< HEAD
 langchain-chroma
-=======
->>>>>>> 3d77de3381461879d545909e028ec427e6cda2a9
