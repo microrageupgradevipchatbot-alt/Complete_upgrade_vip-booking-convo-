@@ -3,6 +3,8 @@ from rag_utils.setup import logger
 from langchain.tools import tool
 from email.mime.text import MIMEText
 import smtplib
+
+import streamlit as st
 #----------------------------functions-------------------------------
 #==========================invoice==================================
 def generate_single_invoice(extracted_info):
@@ -273,11 +275,12 @@ def generate_combined_invoice(extracted_info):
 def send_email(to_email, subject, message):
     logger.info(f"🚪 Inside send email function")
     
-    # Replace with your SMTP server details
-    smtp_server = "smtp.gmail.com"
-    smtp_port = 587
-    smtp_user = "hamzaaakm214@gmail.com"  # Replace with your Gmail address
-    smtp_pass = "bphr enas cxxu vkbv"     # Replace with your Gmail app password
+     # ADD THESE LINES:
+    smtp_server = st.secrets["SMTP_SERVER"]
+    smtp_port = int(st.secrets.get("SMTP_PORT", 587))
+    smtp_user = st.secrets["SMTP_USER"]
+    smtp_pass = st.secrets["SMTP_PASS"]
+
 
     msg = MIMEText(message,'html')
     msg["Subject"] = subject

@@ -1,7 +1,7 @@
 from rag_utils.setup import logger
 from .tools import tools
 from rag_utils.prompt import build_prompt,build_prompt_v3,build_prompt_v5
-import os
+import streamlit as st
 from rag_utils.prompt import SYSTEM_PROMPT
 #====================================langgraph agent setup=========================================
 from langgraph.checkpoint.memory import InMemorySaver
@@ -9,7 +9,7 @@ from langgraph.prebuilt import create_react_agent
 #==================================== Gemini Embeddings and LLM setup ========================================
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 
 if GOOGLE_API_KEY:
     logger.info("GOOGLE_API_KEY loaded successfully.")

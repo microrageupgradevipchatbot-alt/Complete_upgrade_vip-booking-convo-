@@ -1,5 +1,5 @@
 from rag_utils.setup import logger
-import os
+
 from .config import dev_url, api_key
 import requests
 from langchain.tools import tool

@@ -1,6 +1,5 @@
 from langchain.tools import tool
 from .config import dev_url, api_key
-import os
 import requests
 from rag_utils.setup import logger
 #-------------------------------functions---------------------------------------

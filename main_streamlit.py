@@ -12,31 +12,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ---------- Premium styling ----------
-# st.markdown("""
-# <style>
-# @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-# html, body, [class*="css"]  { font-family: 'Inter', sans-serif; }
-# .main-header {
-#   padding: 24px 28px;
-#   background: linear-gradient(135deg,#0f172a 0%, #111827 40%, #1f2937 100%);
-#   border-radius: 18px;
-#   color: #fff;
-#   border: 1px solid rgba(255,255,255,.08);
-#   box-shadow: 0 10px 30px rgba(0,0,0,.15);
-# }
-# .main-header h1 { margin: 0 0 6px 0; font-size: 34px; font-weight: 700; letter-spacing:.2px; }
-# .main-header p { margin: 0; opacity: .85; }
-# .chat-card {
-#   padding: 20px 22px;
-#   background: #ffffff;
-#   border-radius: 14px;
-#   border: 1px solid #e5e7eb;
-#   box-shadow: 0 6px 18px rgba(0,0,0,.04);
-# }
-# .small-muted { color: #6b7280; font-size: 12px; }
-# </style>
-# """, unsafe_allow_html=True)
 
 # ---------- Session state ----------
 if "session_id" not in st.session_state:
@@ -129,6 +104,10 @@ def extract_text_from_ai(content) -> str:
         return "\n".join([t for t in parts if t]) or ""
     return str(content or "")
 
+def md_with_linebreaks(text: str) -> str:
+    # Normalize Windows CRLF and turn single newlines into Markdown line breaks
+    return text.replace("\r\n", "\n").replace("\n", "  \n")
+
 def call_agent(user_text: str) -> str:
     messages_to_send = []
     
@@ -161,8 +140,7 @@ def call_agent(user_text: str) -> str:
 
         if not bot_reply_text:
             bot_reply_text = "Sorry, I am encountering some issues. Please try again later."
-
-        # bot_reply_text = bot_reply_text.replace("\n\n", "\n")
+        # Keep double newlines; do not collapse them
         logger.info(f"✅ Agent invocation successful.{bot_reply_text}")
         return bot_reply_text
     except Exception as e:
@@ -172,8 +150,12 @@ def call_agent(user_text: str) -> str:
 # ---------- Chat history display ----------
 with st.container():
     for role, content in st.session_state.chat:
-        with st.chat_message("user" if role == "user" else "assistant"):
-            st.markdown(content)
+        avatar = "🧑" if role == "user" else "🤖"
+        with st.chat_message(role, avatar=avatar):
+            if role == "assistant":
+                st.markdown(md_with_linebreaks(str(content)))
+            else:
+                st.write(content)
 
 
 
@@ -188,18 +170,16 @@ if prompt:
     # Add user message to chat
     st.session_state.chat.append(("user", prompt))
     
-    # ...existing code...
     # Display user message immediately
     with st.chat_message("user", avatar="🧑"):
-        st.markdown(prompt)
+        st.write(prompt)
     
     # Show assistant typing with spinner
     with st.chat_message("assistant", avatar="🤖"):
         with st.spinner("Typing..."):
             reply = call_agent(prompt)
-        st.markdown(reply, unsafe_allow_html=True)
+        st.markdown(md_with_linebreaks(reply))
 
-# ...existing code...
-    
+
     # Add assistant reply to chat
     st.session_state.chat.append(("assistant", reply))
