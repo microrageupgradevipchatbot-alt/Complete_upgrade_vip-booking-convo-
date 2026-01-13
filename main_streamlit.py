@@ -90,64 +90,67 @@ Ask anything about UpgradeVIP – services, contact info, airport list, or gener
 *Tip: For airport list, just ask “Show airports list”.*
 """)
 # ---------- Helpers ----------
-def extract_text_from_ai(content) -> str:
+from typing import Any, Dict, List, Tuple
+
+def extract_text_from_ai(content: Any) -> str:
+    """Best-effort extraction of text from agent outputs."""
+    if content is None:
+        return ""
     if isinstance(content, str):
         return content
-    if isinstance(content, list):
-        parts = []
-        for p in content:
-            if isinstance(p, dict):
-                if "text" in p:
-                    parts.append(p["text"])
-                elif p.get("type") == "text" and "text" in p:
-                    parts.append(p["text"])
-        return "\n".join([t for t in parts if t]) or ""
-    return str(content or "")
+    if isinstance(content, AIMessage):
+        return content.content or ""
+    if isinstance(content, dict):
+        # common keys across agents/chains
+        for k in ("output", "answer", "final", "content", "text"):
+            v = content.get(k)
+            if isinstance(v, str) and v.strip():
+                return v
+        # sometimes the last message is in messages
+        msgs = content.get("messages")
+        if isinstance(msgs, list) and msgs:
+            last = msgs[-1]
+            if isinstance(last, AIMessage):
+                return last.content or ""
+            if isinstance(last, dict):
+                return str(last.get("content", ""))
+        return str(content)
+    return str(content)
 
 def md_with_linebreaks(text: str) -> str:
     # Normalize Windows CRLF and turn single newlines into Markdown line breaks
     return text.replace("\r\n", "\n").replace("\n", "  \n")
 
-def call_agent(user_text: str) -> str:
-    messages_to_send = []
-    
+def _build_chat_history_for_agent() -> List[Dict[str, str]]:
+    """
+    Convert st.session_state.chat (list of tuples) into the format most agents/tools expect.
+    """
+    history: List[Dict[str, str]] = []
+    for role, content in (st.session_state.chat or []):
+        if role in ("user", "assistant"):
+            history.append({"role": role, "content": str(content)})
+    return history
 
-    messages_to_send.append({"role": "user", "content": user_text})
-    logger.info(f"📥 Messages sending to llm: {messages_to_send}")
+def call_agent(user_text: str) -> str:
+    # IMPORTANT: provide query + chat_history so Schema validation passes
+    payload = {
+        "query": user_text,
+        "chat_history": _build_chat_history_for_agent(),
+        "messages": [{"role": "user", "content": user_text}],
+    }
+
+    logger.info(f"📥 Agent payload keys: {list(payload.keys())}")
+
     try:
         result = agent.invoke(
-            {"messages": messages_to_send},
-            config={
-                "configurable": {"thread_id": st.session_state.session_id},
-                "max_iterations": 5,
-            },
+            payload,
+            config={"configurable": {"thread_id": st.session_state.session_id}},
         )
-        logger.info(f"🔄 Agent response: {result}")
-
-        # Find latest AI message
-        messages = result.get("messages", [])
-        bot_reply = ""
-        for m in reversed(messages):
-            if isinstance(m, AIMessage):
-                bot_reply = getattr(m, "content", None)
-                break
-
-        # Handle string or list response
-        if isinstance(bot_reply, list) and bot_reply and isinstance(bot_reply[0], dict) and "text" in bot_reply[0]:
-            bot_reply_text = bot_reply[0]["text"]
-        else:
-            bot_reply_text = extract_text_from_ai(bot_reply)
-
-        if not bot_reply_text:
-            bot_reply_text = "Sorry, I am encountering some issues. Please try again later."
-        # Keep double newlines; do not collapse them
-        logger.info(f"✅ Agent invocation successful.{bot_reply_text}")
-        return bot_reply_text
+        return extract_text_from_ai(result)
     except Exception as e:
-        logger.error(f"❌ Agent invocation failed: {e}")
+        logger.exception("❌ Agent invocation failed")
         return "Sorry, I am encountering some issues. Please try again later."
-
-# ---------- Chat history display ----------
+    # ---------- Chat history display ----------
 with st.container():
     for role, content in st.session_state.chat:
         avatar = "🧑" if role == "user" else "🤖"
